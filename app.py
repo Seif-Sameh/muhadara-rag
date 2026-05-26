@@ -212,8 +212,8 @@ with gr.Blocks(css=CSS, theme=theme, title="Muhadara RAG") as app:
                                            label="Your audio clip")
                     transcribe_btn = gr.Button("Transcribe + Index", variant="primary")
                     status_md = gr.Markdown()
-                    transcript_out = gr.Textbox(label="Transcript", lines=8, max_lines=18, show_copy_button=True)
-                    summary_out    = gr.Textbox(label="Summary", lines=4, max_lines=10, show_copy_button=True)
+                    transcript_out = gr.Textbox(label="Transcript", lines=8, max_lines=18)
+                    summary_out    = gr.Textbox(label="Summary", lines=4, max_lines=10)
                 with gr.Column(scale=1):
                     gr.Markdown("#### 💬 Ask about this recording")
                     upload_chatbot = gr.Chatbot(height=420, show_label=False)
