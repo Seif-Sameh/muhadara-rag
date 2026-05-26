@@ -78,6 +78,14 @@ print("✅ App ready")
 
 
 # ── Demo tab ─────────────────────────────────────────────────
+def _append(history, user_msg, assistant_msg):
+    """Gradio 6 Chatbot needs OpenAI-style message dicts."""
+    return (history or []) + [
+        {"role": "user", "content": user_msg},
+        {"role": "assistant", "content": assistant_msg},
+    ]
+
+
 def on_ask(question, history):
     question = (question or "").strip()
     if not question:
@@ -86,8 +94,8 @@ def on_ask(question, history):
         hits   = qdrant_retrieve(question)
         answer = rag_inner.invoke({"context": format_context(hits), "question": question})
     except Exception as e:
-        return (history or []) + [(question, f"⚠️ Error: {e}")], "", ""
-    history = (history or []) + [(question, answer)]
+        return _append(history, question, f"⚠️ Error: {e}"), "", ""
+    history = _append(history, question, answer)
     chunks_md = "### Retrieved chunks\n\n"
     for doc, score in hits:
         ts = format_timestamp(float(doc.metadata.get("abs_start", 0)))
@@ -141,13 +149,13 @@ def ask_upload(question, history, store):
     if not question:
         return history, ""
     if store is None:
-        return (history or []) + [(question, "⚠️ Upload and transcribe a recording first.")], ""
+        return _append(history, question, "⚠️ Upload and transcribe a recording first."), ""
     hits = store.similarity_search_with_score(question, k=3)
     try:
         answer = rag_inner.invoke({"context": format_context(hits), "question": question})
     except Exception as e:
         answer = f"⚠️ Error: {e}"
-    return (history or []) + [(question, answer)], ""
+    return _append(history, question, answer), ""
 
 
 # ── UI ───────────────────────────────────────────────────────
@@ -178,7 +186,7 @@ with gr.Blocks(title="Muhadara RAG") as app:
                 with gr.Column(scale=2):
                     if Path(DEMO_AUDIO_PATH).exists():
                         gr.Audio(value=DEMO_AUDIO_PATH, label="Demo lecture audio", interactive=False)
-                    chatbot = gr.Chatbot(height=420, show_label=False)
+                    chatbot = gr.Chatbot(height=420, show_label=False, type="messages")
                     with gr.Row():
                         question = gr.Textbox(placeholder="Ask in Arabic or English…",
                                               show_label=False, scale=5, container=False)
@@ -216,7 +224,7 @@ with gr.Blocks(title="Muhadara RAG") as app:
                     summary_out    = gr.Textbox(label="Summary", lines=4, max_lines=10)
                 with gr.Column(scale=1):
                     gr.Markdown("#### 💬 Ask about this recording")
-                    upload_chatbot = gr.Chatbot(height=420, show_label=False)
+                    upload_chatbot = gr.Chatbot(height=420, show_label=False, type="messages")
                     with gr.Row():
                         upload_question = gr.Textbox(placeholder="What did the speaker say about…?",
                                                      show_label=False, scale=5, container=False)
