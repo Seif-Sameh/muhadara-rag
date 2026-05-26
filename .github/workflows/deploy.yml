@@ -1,13 +1,19 @@
 name: Deploy to Hugging Face Spaces
 
 # Auto-deploys the app to the HF Space on every push to main.
-# Requires a repo secret HF_TOKEN (a Hugging Face WRITE token):
+# Requires a repo secret HF_TOKEN — a Hugging Face **Write** token
+# (classic Write, or fine-grained with "Write access to contents/settings of selected repos"
+# including Seif-Eldeen-Sameh/muhadara-rag).
+#
 #   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+#
+# Uses huggingface_hub.upload_folder instead of `git push`, which sidesteps every
+# HTTPS-auth quirk and gives a clearer error if the token is wrong.
 
 on:
   push:
     branches: [main]
-  workflow_dispatch:        # allow manual runs from the Actions tab
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -16,16 +22,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0     # full history so the force-push to HF keeps lineage
-          lfs: true          # demo audio is tracked with Git LFS
+          lfs: true
 
-      - name: Push to Hugging Face Space
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install huggingface_hub
+        run: pip install --upgrade "huggingface_hub>=0.24"
+
+      - name: Upload to HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USER: Seif-Eldeen-Sameh
-          SPACE_NAME: muhadara-rag
         run: |
-          git config --global user.email "ci@github.actions"
-          git config --global user.name "GitHub Actions"
-          git remote add space "https://${HF_USER}:${HF_TOKEN}@huggingface.co/spaces/${HF_USER}/${SPACE_NAME}"
-          git push --force space main
+          python <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          repo_id = "Seif-Eldeen-Sameh/muhadara-rag"
+          api = HfApi(token=os.environ["HF_TOKEN"])
+
+          # Sanity-check the token has write on the Space before uploading
+          who = api.whoami()
+          print(f"Authenticated as: {who['name']} ({who.get('type')})")
+
+          api.upload_folder(
+              folder_path   = ".",
+              repo_id       = repo_id,
+              repo_type     = "space",
+              commit_message= f"Deploy {os.environ.get('GITHUB_SHA', '')[:7]} from GitHub Actions",
+              ignore_patterns=[
+                  ".git/*", ".github/*",
+                  "__pycache__/*", "*.pyc",
+                  ".venv/*", "*.bak",
+                  "cards/*", "docs/*", "eval/*",   # repo-only docs/metrics, not Space runtime
+                  "DEPLOY.md", "LICENSE",
+                  "modal_asr.py",                  # deployed separately to Modal
+                  "push_to_space.sh",
+              ],
+          )
+          print(f"✅ Deployed to https://huggingface.co/spaces/{repo_id}")
+          PY

@@ -41,6 +41,7 @@ image = (
         "faster-whisper==1.0.3",
         "huggingface_hub>=0.23",
         "fastapi[standard]",
+        "requests>=2.31",   # faster-whisper imports it at module load time
     )
 )
 
@@ -54,7 +55,9 @@ CACHE_DIR = "/cache"
     gpu="T4",                       # cheapest GPU; plenty for whisper-medium INT8
     scaledown_window=300,           # stay warm 5 min after last call, then scale to zero
     volumes={CACHE_DIR: model_cache},
-    secrets=[modal.Secret.from_name("muhadara-asr-token", required_keys=["ASR_TOKEN"])],
+    # No auth secret — endpoint is open. Acceptable for a portfolio demo because
+    # Modal's free monthly credit caps spend. Add the secret back if you ever
+    # share the URL widely.
 )
 class Whisper:
     @modal.enter()
@@ -73,12 +76,6 @@ class Whisper:
         """POST raw audio bytes (any ffmpeg-decodable format). Returns JSON segments."""
         from fastapi import Response
         import json, tempfile, os as _os
-
-        # Lightweight shared-secret auth so randoms can't run up the bill
-        expected = _os.environ.get("ASR_TOKEN", "")
-        if expected and request.headers.get("X-Auth-Token") != expected:
-            return Response(content=json.dumps({"error": "unauthorized"}),
-                            status_code=401, media_type="application/json")
 
         audio_bytes = await request.body()
         if not audio_bytes:
