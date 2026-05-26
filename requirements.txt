@@ -1,4 +1,9 @@
-gradio>=6.0,<7
+# Web server
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9     # required by FastAPI for file uploads
+
+# ASR (CPU fallback path; primary inference is on Modal)
 faster-whisper>=1.0.3
 ctranslate2>=4.0
 

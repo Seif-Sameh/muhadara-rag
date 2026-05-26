@@ -34,8 +34,14 @@ MODEL_ID = "Seif-Eldeen-Sameh/whisper-medium-arabic-codeswitched-ct2"
 app = modal.App(APP_NAME)
 
 # Image: ffmpeg for decoding + faster-whisper (CTranslate2 backend)
+# CUDA + cuDNN base image — faster-whisper / CTranslate2 need libcublas + libcudnn
+# at runtime when device="cuda". `debian_slim` ships without them.
+# NVIDIA changed tag scheme: it's `-cudnn-runtime` now, not `-cudnn9-runtime`.
 image = (
-    modal.Image.debian_slim(python_version="3.11")
+    modal.Image.from_registry(
+        "nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04",
+        add_python="3.11",
+    )
     .apt_install("ffmpeg")
     .pip_install(
         "faster-whisper==1.0.3",
@@ -44,6 +50,11 @@ image = (
         "requests>=2.31",   # faster-whisper imports it at module load time
     )
 )
+
+# Make fastapi types resolvable inside the container only — so `modal deploy`
+# from your laptop doesn't require fastapi locally.
+with image.imports():
+    from fastapi import Request, Response
 
 # Persist the downloaded CT2 model across cold starts (no re-download each spin-up)
 model_cache = modal.Volume.from_name("muhadara-whisper-cache", create_if_missing=True)
@@ -72,9 +83,8 @@ class Whisper:
         print("✅ Whisper CT2 model loaded on GPU")
 
     @modal.fastapi_endpoint(method="POST", docs=True)
-    async def transcribe(self, request):
+    async def transcribe(self, request: Request):
         """POST raw audio bytes (any ffmpeg-decodable format). Returns JSON segments."""
-        from fastapi import Response
         import json, tempfile, os as _os
 
         audio_bytes = await request.body()

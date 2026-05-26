@@ -39,6 +39,13 @@ GLOBAL_COLLECTION  = "lectures_global"
 MODAL_ASR_URL   = os.environ.get("MODAL_ASR_URL", "").strip()
 MODAL_ASR_TOKEN = os.environ.get("MODAL_ASR_TOKEN", "").strip()
 
+# Loud startup signal so we can verify the env var made it into the Space
+if MODAL_ASR_URL:
+    _masked = MODAL_ASR_URL[:40] + "…" if len(MODAL_ASR_URL) > 40 else MODAL_ASR_URL
+    print(f"[ASR] Routing → Modal GPU: {_masked}", flush=True)
+else:
+    print("[ASR] Routing → local CPU (MODAL_ASR_URL is empty)", flush=True)
+
 
 # ── Formatting ───────────────────────────────────────────────
 def format_timestamp(seconds: float) -> str:
@@ -127,16 +134,21 @@ def load_local_asr():
 
 def transcribe(audio_path: str, local_asr=None) -> dict[str, Any]:
     """Transcribe via Modal GPU if configured, else local CPU. Returns segments + meta."""
+    import time
+
     # ── Primary: Modal serverless GPU ──
     if MODAL_ASR_URL:
+        t0 = time.time()
+        print(f"[ASR] → POST {MODAL_ASR_URL[:60]}… (cold start may take ~30s)", flush=True)
         try:
             with open(audio_path, "rb") as f:
                 resp = requests.post(
                     MODAL_ASR_URL,
                     data=f.read(),
                     headers={"X-Auth-Token": MODAL_ASR_TOKEN} if MODAL_ASR_TOKEN else {},
-                    timeout=180,
+                    timeout=300,   # generous for cold starts on long audio
                 )
+            print(f"[ASR] Modal responded {resp.status_code} in {time.time()-t0:.1f}s", flush=True)
             resp.raise_for_status()
             data = resp.json()
             return {
@@ -145,9 +157,11 @@ def transcribe(audio_path: str, local_asr=None) -> dict[str, Any]:
                 "device":   data.get("device", "modal-gpu"),
             }
         except Exception as e:
-            print(f"[ASR] Modal failed ({e}); falling back to local CPU")
+            print(f"[ASR] Modal failed after {time.time()-t0:.1f}s ({type(e).__name__}: {e}) "
+                  f"— falling back to local CPU", flush=True)
 
     # ── Fallback: local CPU ──
+    print("[ASR] Using local CPU (fallback)", flush=True)
     import librosa
     if local_asr is None:
         local_asr = load_local_asr()

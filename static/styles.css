@@ -1,0 +1,27 @@
+/* Custom CSS for Muhadara RAG — small additions on top of Tailwind. */
+
+/* Animated "thinking" dots */
+.dot-pulse {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.4;
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30%           { opacity: 1;   transform: scale(1);   }
+}
+
+/* Pleasant scrollbars on chat areas */
+*::-webkit-scrollbar       { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.3); border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.5); }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Smooth audio control colour to match brand */
+audio::-webkit-media-controls-panel {
+  background-color: #f8fafc;
+}

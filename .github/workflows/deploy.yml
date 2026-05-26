@@ -60,6 +60,7 @@ jobs:
                   "DEPLOY.md", "LICENSE",
                   "modal_asr.py",                  # deployed separately to Modal
                   "push_to_space.sh",
+                  "app.py", "style.css", "packages.txt",   # old Gradio leftovers (kept locally for reference)
               ],
           )
           print(f"✅ Deployed to https://huggingface.co/spaces/{repo_id}")
