@@ -157,7 +157,7 @@ theme = gr.themes.Soft(
     font=[gr.themes.GoogleFont("Inter"), "system-ui", "sans-serif"],
 )
 
-with gr.Blocks(css=CSS, theme=theme, title="Muhadara RAG") as app:
+with gr.Blocks(title="Muhadara RAG") as app:
     gr.HTML("""
     <div class="app-header">
         <h1>🎙️ Muhadara RAG</h1>
@@ -238,4 +238,6 @@ with gr.Blocks(css=CSS, theme=theme, title="Muhadara RAG") as app:
 
 
 if __name__ == "__main__":
-    app.launch(show_api=False)
+    # In Gradio 6, theme + css moved from Blocks() to launch().
+    # show_api was removed (the /info endpoint behaves differently in v6).
+    app.launch(theme=theme, css=CSS)
