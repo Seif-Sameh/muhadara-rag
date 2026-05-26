@@ -1,0 +1,31 @@
+name: Deploy to Hugging Face Spaces
+
+# Auto-deploys the app to the HF Space on every push to main.
+# Requires a repo secret HF_TOKEN (a Hugging Face WRITE token):
+#   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # allow manual runs from the Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # full history so the force-push to HF keeps lineage
+          lfs: true          # demo audio is tracked with Git LFS
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USER: Seif-Eldeen-Sameh
+          SPACE_NAME: muhadara-rag
+        run: |
+          git config --global user.email "ci@github.actions"
+          git config --global user.name "GitHub Actions"
+          git remote add space "https://${HF_USER}:${HF_TOKEN}@huggingface.co/spaces/${HF_USER}/${SPACE_NAME}"
+          git push --force space main
