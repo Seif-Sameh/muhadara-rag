@@ -1,7 +1,7 @@
 ---
 title: Muhadara RAG
 emoji: 🎙️
-colorFrom: emerald
+colorFrom: green
 colorTo: blue
 sdk: gradio
 sdk_version: 6.13.0
