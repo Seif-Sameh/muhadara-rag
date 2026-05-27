@@ -1,163 +1,211 @@
 /**
- * Muhadara RAG — frontend logic.
- * Plain JS + Alpine.js (no build step). Two tabs, two RAG flows.
+ * Muhadara RAG — unified single-surface chat (Claude/ChatGPT style).
+ *
+ * Routes /api/ask vs /api/ask-upload based on currentSource.type.
+ * File attach button transcribes the clip and switches source in place.
  */
 function muhadaraApp() {
   return {
-    tab: 'demo',
-    dragHover: false,
+    // ── State ────────────────────────────────────────────
+    messages:     [],
+    input:        '',
+    loading:      false,
+    uploading:    false,
+    uploadStatus: '',
+    uploadError:  false,
+    audioPlaying: false,
 
-    demo: {
-      messages: [],     // [{role: 'user'|'assistant', content: str, html?: str}]
-      sources:  [],
-      input:    '',
-      loading:  false,
-      examples: [
-        'What is NLP and why is it difficult?',
-        'ما الفرق بين ال syntax و ال semantics؟',
-        'What is ambiguity in natural language?',
-        'اشرح ال parsing tree',
-        'What is wordnet?',
-      ],
+    currentSource: {
+      type:     'demo',                                  // 'demo' | 'upload'
+      name:     'NLP Lecture 1 — Syntax & Semantics',
+      audioUrl: '/static/demo.mp3',
+      sessionId: null,
     },
 
-    upload: {
-      file:        null,
-      processing:  false,
-      status:      '',
-      error:       false,
-      transcript:  '',
-      summary:     '',
-      sessionId:   null,
-      numChunks:   0,
-      messages:    [],
-      input:       '',
-      chatLoading: false,
+    examples: [
+      'What is NLP and why is it difficult?',
+      'ما الفرق بين الـ syntax و الـ semantics؟',
+      'Explain ambiguity in natural language',
+      'اشرح الـ parsing tree',
+      'What is wordnet?',
+    ],
+
+    get chatStarted() { return this.messages.length > 0 || this.loading; },
+
+    // ── Composer ─────────────────────────────────────────
+    autoGrow(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 200) + 'px';
     },
 
-    // ─── Demo lecture tab ─────────────────────────────────
-    async askDemo() {
-      const q = this.demo.input.trim();
-      if (!q || this.demo.loading) return;
-      this.demo.input = '';
-      this.demo.loading = true;
-      this.demo.messages.push({ role: 'user', content: q });
-      this.$nextTick(() => this._scroll('demoScroll'));
+    async send() {
+      const q = this.input.trim();
+      if (!q || this.loading) return;
+      this.input = '';
+      this.$nextTick(() => {
+        this.autoGrow(this.$refs.composer);
+        this.autoGrow(this.$refs.composer2);
+      });
+
+      this.messages.push({ role: 'user', content: q });
+      this.loading = true;
+      this.$nextTick(() => this._scrollDown());
 
       try {
-        const res  = await fetch('/api/ask', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ question: q }),
-        });
-        if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
-        const data = await res.json();
-        this.demo.messages.push({
+        const data = await this._postAsk(q);
+        this.messages.push({
           role:    'assistant',
           content: data.answer,
-          html:    this._linkifyTimestamps(data.answer, 'demoAudio'),
+          html:    this._linkifyTimestamps(data.answer),
+          sources: data.sources || [],
         });
-        this.demo.sources = data.sources || [];
       } catch (e) {
-        this.demo.messages.push({ role: 'assistant', content: `⚠️ Error: ${e.message}` });
+        this.messages.push({ role: 'assistant', content: `⚠️ ${e.message}` });
       } finally {
-        this.demo.loading = false;
-        this.$nextTick(() => this._scroll('demoScroll'));
+        this.loading = false;
+        this.$nextTick(() => this._scrollDown());
       }
     },
 
-    seekDemoTo(seconds) {
-      const audio = this.$refs.demoAudio;
-      if (!audio) return;
-      audio.currentTime = seconds;
-      audio.play().catch(() => {});
+    async _postAsk(question) {
+      const isUpload = this.currentSource.type === 'upload';
+      const url      = isUpload ? '/api/ask-upload' : '/api/ask';
+      const body     = isUpload
+        ? { session_id: this.currentSource.sessionId, question }
+        : { question };
+
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      return res.json();
     },
 
-    // ─── Upload tab ───────────────────────────────────────
-    handleDrop(e) {
-      this.dragHover = false;
-      const file = e.dataTransfer?.files?.[0];
-      if (file && file.type.startsWith('audio')) this.upload.file = file;
+    // ── File upload (paperclip button) ───────────────────
+    async handleFile(e) {
+      const file = e?.target?.files?.[0];
+      if (!file) return;
+      e.target.value = '';     // allow re-uploading the same file
+      await this._upload(file);
     },
 
-    handleFile(e) {
-      const file = e.target?.files?.[0];
-      if (file) this.upload.file = file;
-    },
-
-    async transcribeUpload() {
-      if (!this.upload.file || this.upload.processing) return;
-      this.upload.processing = true;
-      this.upload.status     = 'Uploading + transcribing on GPU …';
-      this.upload.error      = false;
-      this.upload.transcript = '';
-      this.upload.summary    = '';
-      this.upload.sessionId  = null;
-      this.upload.numChunks  = 0;
-      this.upload.messages   = [];
+    async _upload(file) {
+      this.uploading    = true;
+      this.uploadError  = false;
+      this.uploadStatus = `⏳ Transcribing "${file.name}" on the GPU…`;
 
       try {
         const fd = new FormData();
-        fd.append('audio', this.upload.file);
+        fd.append('audio', file);
         const res = await fetch('/api/upload', { method: 'POST', body: fd });
-        if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
         const data = await res.json();
-        this.upload.transcript = data.transcript;
-        this.upload.summary    = data.summary;
-        this.upload.sessionId  = data.session_id;
-        this.upload.numChunks  = data.num_chunks;
-        this.upload.status     = `✅ Transcribed ${data.duration.toFixed(1)}s on ${data.device}.`;
+
+        // Swap the active source. Audio playback comes from the local blob.
+        const blobUrl = URL.createObjectURL(file);
+        if (this._lastBlobUrl) URL.revokeObjectURL(this._lastBlobUrl);
+        this._lastBlobUrl = blobUrl;
+
+        this.currentSource = {
+          type:      'upload',
+          name:      file.name,
+          audioUrl:  blobUrl,
+          sessionId: data.session_id,
+        };
+        this.messages = [
+          {
+            role: 'assistant',
+            content:
+              `Indexed **${data.num_chunks}** chunk${data.num_chunks === 1 ? '' : 's'} from ` +
+              `**${file.name}** (${data.duration.toFixed(1)}s, transcribed on ${data.device}).\n\n` +
+              `**Summary:** ${data.summary}\n\n` +
+              `Ask me anything about this recording.`,
+            html: null,
+          },
+        ];
+        // Render the summary markdown-lite
+        this.messages[0].html = this._linkifyTimestamps(this._mdLite(this.messages[0].content));
+        this.uploadStatus = `✅ Ready · ${data.num_chunks} chunks · ${data.duration.toFixed(1)}s`;
+        this.$nextTick(() => this._scrollDown());
       } catch (e) {
-        this.upload.error  = true;
-        this.upload.status = `⚠️ ${e.message}`;
+        this.uploadError  = true;
+        this.uploadStatus = `⚠️ ${e.message}`;
       } finally {
-        this.upload.processing = false;
+        this.uploading = false;
+        setTimeout(() => { if (!this.uploadError) this.uploadStatus = ''; }, 4000);
       }
     },
 
-    async askUpload() {
-      const q = this.upload.input.trim();
-      if (!q || this.upload.chatLoading || !this.upload.sessionId) return;
-      this.upload.input       = '';
-      this.upload.chatLoading = true;
-      this.upload.messages.push({ role: 'user', content: q });
-      this.$nextTick(() => this._scroll('uploadScroll'));
-
-      try {
-        const res = await fetch('/api/ask-upload', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ session_id: this.upload.sessionId, question: q }),
-        });
-        if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
-        const data = await res.json();
-        this.upload.messages.push({ role: 'assistant', content: data.answer });
-      } catch (e) {
-        this.upload.messages.push({ role: 'assistant', content: `⚠️ Error: ${e.message}` });
-      } finally {
-        this.upload.chatLoading = false;
-        this.$nextTick(() => this._scroll('uploadScroll'));
-      }
+    // ── Reset / source switching ─────────────────────────
+    resetToDemo() {
+      if (this._lastBlobUrl) { URL.revokeObjectURL(this._lastBlobUrl); this._lastBlobUrl = null; }
+      this.currentSource = {
+        type: 'demo',
+        name: 'NLP Lecture 1 — Syntax & Semantics',
+        audioUrl: '/static/demo.mp3',
+        sessionId: null,
+      };
+      this.messages = [];
+      this.uploadStatus = '';
     },
 
-    // ─── Helpers ──────────────────────────────────────────
-    _scroll(ref) {
-      const el = this.$refs[ref];
+    resetConversation() {
+      this.messages = [];
+      this.input    = '';
+      this.uploadStatus = '';
+    },
+
+    // ── Audio ────────────────────────────────────────────
+    toggleAudio() {
+      const a = this.$refs.audio;
+      if (!a) return;
+      if (a.paused) a.play().catch(() => {});
+      else a.pause();
+    },
+
+    seekTo(seconds) {
+      const a = this.$refs.audio;
+      if (!a) return;
+      a.currentTime = seconds;
+      a.play().catch(() => {});
+    },
+
+    // ── Helpers ──────────────────────────────────────────
+    _scrollDown() {
+      const el = this.$refs.scroll;
       if (el) el.scrollTop = el.scrollHeight;
     },
 
-    /** Wrap [MM:SS] or [HH:MM:SS] in clickable chips that seek the demo audio. */
-    _linkifyTimestamps(text, _audioRef) {
-      const esc = text
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return esc.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (_, ts) => {
+    /** Tiny markdown for bold (**text**) and newlines. Just for the system message. */
+    _mdLite(text) {
+      return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    },
+
+    /** Wrap [MM:SS] / [HH:MM:SS] in clickable chips that seek the current audio. */
+    _linkifyTimestamps(text) {
+      // If we already escaped via _mdLite, this just operates on the resulting string.
+      // Otherwise escape first.
+      let s = text;
+      if (!/<strong>/.test(s)) {
+        s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+      return s.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (_, ts) => {
         const parts = ts.split(':').map(Number);
         const sec   = parts.length === 3
           ? parts[0] * 3600 + parts[1] * 60 + parts[2]
           : parts[0] * 60 + parts[1];
-        // Same styling on both user (emerald) and assistant (zinc) bubbles —
-        // ring + tint reads fine on either background.
-        return `<button onclick="(function(){const a=document.querySelector('audio');if(a){a.currentTime=${sec};a.play().catch(()=>{});}})()" class="inline-flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 mx-0.5 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 rounded ring-1 ring-emerald-400/30 transition-colors align-middle" dir="ltr">▶ ${ts}</button>`;
+        return `<button onclick="(function(){const a=document.querySelector('audio');if(a){a.currentTime=${sec};a.play().catch(()=>{});}})()" class="inline-flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 mx-0.5 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 rounded ring-1 ring-emerald-400/20 transition-colors align-middle" dir="ltr">▶ ${ts}</button>`;
       });
     },
   };
