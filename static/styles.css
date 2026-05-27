@@ -1,19 +1,11 @@
-/* Muhadara RAG — custom CSS (dark theme + RTL polish). */
+/* Muhadara RAG — custom CSS (dark + RTL + chat-bubble markdown polish). */
 
-/* ── Typography ───────────────────────────────────────── */
 html { color-scheme: dark; }
 
 body {
-  /* Mixed Latin + Arabic. Inter handles Latin, Cairo handles Arabic.
-     Browsers pick the right one per glyph. */
   font-family: 'Inter', 'Cairo', system-ui, sans-serif;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
-}
-
-/* Improve Arabic legibility — Cairo is heavier visually, balance it */
-:lang(ar), [dir="auto"]:has(:not(:lang(en))) {
-  letter-spacing: 0;
 }
 
 /* ── Loading dots ─────────────────────────────────────── */
@@ -45,7 +37,7 @@ audio {
   border-radius: 8px;
 }
 
-/* ── Focus rings (subtle, brand-colored) ───────────────── */
+/* ── Focus rings ───────────────────────────────────────── */
 *:focus-visible {
   outline: 2px solid rgb(16 185 129 / 0.6);
   outline-offset: 2px;
@@ -55,12 +47,75 @@ audio {
 /* ── Selection ─────────────────────────────────────────── */
 ::selection { background: rgba(16, 185, 129, 0.3); color: #fff; }
 
-/* ── RTL fixes for things Tailwind logical props don't cover ─ */
-/* Make the audio progress bar feel right in both directions */
-audio::-webkit-media-controls-current-time-display,
-audio::-webkit-media-controls-time-remaining-display {
-  font-family: 'JetBrains Mono', monospace;
+/* ── Smooth transitions ────────────────────────────────── */
+button, a, input, textarea {
+  transition: background-color 150ms, border-color 150ms, color 150ms, opacity 150ms;
 }
 
-/* Smooth hover transitions everywhere */
-button, a, input { transition: background-color 150ms, border-color 150ms, color 150ms, opacity 150ms; }
+/* ── Markdown inside assistant bubbles ─────────────────── */
+.prose-body { word-wrap: break-word; overflow-wrap: anywhere; }
+
+.prose-body p              { margin: 0.5em 0; }
+.prose-body p:first-child  { margin-top: 0; }
+.prose-body p:last-child   { margin-bottom: 0; }
+.prose-body strong         { color: rgb(244 244 245); font-weight: 600; }
+.prose-body em             { color: rgb(212 212 216); }
+.prose-body a              { color: rgb(110 231 183); text-decoration: underline; text-underline-offset: 2px; }
+.prose-body a:hover        { color: rgb(167 243 208); }
+
+.prose-body ul, .prose-body ol {
+  margin: 0.5em 0;
+  padding-inline-start: 1.5em;
+}
+.prose-body li             { margin: 0.25em 0; }
+.prose-body li > p         { margin: 0; }
+
+.prose-body h1, .prose-body h2, .prose-body h3, .prose-body h4 {
+  font-weight: 600;
+  margin: 0.75em 0 0.4em;
+  line-height: 1.3;
+}
+.prose-body h1 { font-size: 1.25em; }
+.prose-body h2 { font-size: 1.125em; }
+.prose-body h3 { font-size: 1.05em; }
+
+.prose-body code {
+  background: rgba(63, 63, 70, 0.6);
+  color: rgb(244 244 245);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+}
+.prose-body pre {
+  background: rgb(9 9 11 / 0.7);
+  border: 1px solid rgb(39 39 42);
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  overflow-x: auto;
+  margin: 0.75em 0;
+  font-size: 0.85em;
+}
+.prose-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  color: rgb(228 228 231);
+}
+
+.prose-body blockquote {
+  border-inline-start: 3px solid rgb(16 185 129 / 0.6);
+  padding-inline-start: 0.75em;
+  color: rgb(212 212 216);
+  margin: 0.5em 0;
+  font-style: italic;
+}
+
+.prose-body hr {
+  border: 0;
+  border-top: 1px solid rgb(39 39 42);
+  margin: 1em 0;
+}
+
+/* RTL: keep the inline timestamp chip text LTR even when the surrounding paragraph is RTL */
+.prose-body button[data-seek] { unicode-bidi: isolate; }

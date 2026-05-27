@@ -1,8 +1,11 @@
 /**
- * Muhadara RAG — unified single-surface chat (Claude/ChatGPT style).
+ * Muhadara RAG — unified single-surface chat.
  *
- * Routes /api/ask vs /api/ask-upload based on currentSource.type.
- * File attach button transcribes the clip and switches source in place.
+ *  - sessionStorage persistence (refresh keeps your chat)
+ *  - Markdown rendering for LLM answers (marked + DOMPurify)
+ *  - [MM:SS] citations become clickable chips (data-seek + event delegation)
+ *  - File attach transcribes a clip and switches the active source in place
+ *  - Stop button (AbortController) interrupts an in-flight request
  */
 function muhadaraApp() {
   return {
@@ -14,11 +17,12 @@ function muhadaraApp() {
     uploadStatus: '',
     uploadError:  false,
     audioPlaying: false,
+    _abort:       null,
 
     currentSource: {
-      type:     'demo',                                  // 'demo' | 'upload'
-      name:     'NLP Lecture 1 — Syntax & Semantics',
-      audioUrl: '/static/demo.mp3',
+      type:      'demo',
+      name:      'NLP Lecture 1 — Syntax & Semantics',
+      audioUrl:  '/static/demo.mp3',
       sessionId: null,
     },
 
@@ -31,6 +35,33 @@ function muhadaraApp() {
     ],
 
     get chatStarted() { return this.messages.length > 0 || this.loading; },
+
+    // ── Persistence (sessionStorage) ─────────────────────
+    _key: 'muhadara.session.v4',
+
+    restore() {
+      try {
+        const raw = sessionStorage.getItem(this._key);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        // Never restore a stale upload session (server may have lost it on restart).
+        if (s.currentSource?.type === 'upload') return;
+        if (Array.isArray(s.messages)) this.messages = s.messages;
+        if (s.currentSource)            this.currentSource = s.currentSource;
+        this.$nextTick(() => this._scrollDown());
+      } catch {}
+      this.$watch('messages', () => this._persist());
+      this.$watch('currentSource', () => this._persist());
+    },
+
+    _persist() {
+      try {
+        sessionStorage.setItem(this._key, JSON.stringify({
+          messages:      this.messages,
+          currentSource: this.currentSource,
+        }));
+      } catch {}
+    },
 
     // ── Composer ─────────────────────────────────────────
     autoGrow(el) {
@@ -48,27 +79,39 @@ function muhadaraApp() {
         this.autoGrow(this.$refs.composer2);
       });
 
-      this.messages.push({ role: 'user', content: q });
+      this.messages.push({ role: 'user', content: q, html: this._escape(q) });
       this.loading = true;
       this.$nextTick(() => this._scrollDown());
 
+      this._abort = new AbortController();
       try {
-        const data = await this._postAsk(q);
+        const data = await this._postAsk(q, this._abort.signal);
         this.messages.push({
-          role:    'assistant',
-          content: data.answer,
-          html:    this._linkifyTimestamps(data.answer),
-          sources: data.sources || [],
+          role:        'assistant',
+          content:     data.answer,
+          html:        this._renderAnswer(data.answer),
+          sources:     data.sources || [],
+          sourcesOpen: false,
+          copied:      false,
         });
       } catch (e) {
-        this.messages.push({ role: 'assistant', content: `⚠️ ${e.message}` });
+        if (e.name === 'AbortError') {
+          this.messages.push({ role: 'assistant', content: '⏹  Stopped.', html: '<em class="text-zinc-500">Stopped.</em>' });
+        } else {
+          this.messages.push({ role: 'assistant', content: `⚠️ ${e.message}`, html: this._escape(`⚠️ ${e.message}`) });
+        }
       } finally {
         this.loading = false;
+        this._abort  = null;
         this.$nextTick(() => this._scrollDown());
       }
     },
 
-    async _postAsk(question) {
+    stopGeneration() {
+      if (this._abort) this._abort.abort();
+    },
+
+    async _postAsk(question, signal) {
       const isUpload = this.currentSource.type === 'upload';
       const url      = isUpload ? '/api/ask-upload' : '/api/ask';
       const body     = isUpload
@@ -79,6 +122,7 @@ function muhadaraApp() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(body),
+        signal,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -87,11 +131,11 @@ function muhadaraApp() {
       return res.json();
     },
 
-    // ── File upload (paperclip button) ───────────────────
+    // ── Upload ───────────────────────────────────────────
     async handleFile(e) {
       const file = e?.target?.files?.[0];
       if (!file) return;
-      e.target.value = '';     // allow re-uploading the same file
+      e.target.value = '';
       await this._upload(file);
     },
 
@@ -110,7 +154,6 @@ function muhadaraApp() {
         }
         const data = await res.json();
 
-        // Swap the active source. Audio playback comes from the local blob.
         const blobUrl = URL.createObjectURL(file);
         if (this._lastBlobUrl) URL.revokeObjectURL(this._lastBlobUrl);
         this._lastBlobUrl = blobUrl;
@@ -121,19 +164,19 @@ function muhadaraApp() {
           audioUrl:  blobUrl,
           sessionId: data.session_id,
         };
-        this.messages = [
-          {
-            role: 'assistant',
-            content:
-              `Indexed **${data.num_chunks}** chunk${data.num_chunks === 1 ? '' : 's'} from ` +
-              `**${file.name}** (${data.duration.toFixed(1)}s, transcribed on ${data.device}).\n\n` +
-              `**Summary:** ${data.summary}\n\n` +
-              `Ask me anything about this recording.`,
-            html: null,
-          },
-        ];
-        // Render the summary markdown-lite
-        this.messages[0].html = this._linkifyTimestamps(this._mdLite(this.messages[0].content));
+        const intro =
+          `**Indexed ${data.num_chunks} chunk${data.num_chunks === 1 ? '' : 's'} from \`${file.name}\`** ` +
+          `(${data.duration.toFixed(1)}s, transcribed on ${data.device}).\n\n` +
+          `**Summary:** ${data.summary}\n\n` +
+          `Ask me anything about this recording.`;
+        this.messages = [{
+          role:        'assistant',
+          content:     intro,
+          html:        this._renderAnswer(intro),
+          sources:     [],
+          sourcesOpen: false,
+          copied:      false,
+        }];
         this.uploadStatus = `✅ Ready · ${data.num_chunks} chunks · ${data.duration.toFixed(1)}s`;
         this.$nextTick(() => this._scrollDown());
       } catch (e) {
@@ -145,7 +188,7 @@ function muhadaraApp() {
       }
     },
 
-    // ── Reset / source switching ─────────────────────────
+    // ── Source switching ─────────────────────────────────
     resetToDemo() {
       if (this._lastBlobUrl) { URL.revokeObjectURL(this._lastBlobUrl); this._lastBlobUrl = null; }
       this.currentSource = {
@@ -158,55 +201,79 @@ function muhadaraApp() {
       this.uploadStatus = '';
     },
 
-    resetConversation() {
+    newChat() {
       this.messages = [];
       this.input    = '';
       this.uploadStatus = '';
+      this.$nextTick(() => this.$refs.composer?.focus());
     },
 
-    // ── Audio ────────────────────────────────────────────
+    // ── Audio + click delegation ─────────────────────────
     toggleAudio() {
       const a = this.$refs.audio;
       if (!a) return;
       if (a.paused) a.play().catch(() => {});
-      else a.pause();
+      else          a.pause();
     },
 
     seekTo(seconds) {
       const a = this.$refs.audio;
       if (!a) return;
-      a.currentTime = seconds;
+      a.currentTime = +seconds;
       a.play().catch(() => {});
+    },
+
+    /** Delegated click handler — any element with [data-seek] seeks the audio.
+        Used by inline timestamp chips (rendered into LLM answers + source cards). */
+    onMessagesClick(e) {
+      const el = e.target.closest('[data-seek]');
+      if (el) this.seekTo(el.dataset.seek);
+    },
+
+    // ── Copy ─────────────────────────────────────────────
+    async copyMessage(msg, _e) {
+      try {
+        await navigator.clipboard.writeText(msg.content);
+        msg.copied = true;
+        setTimeout(() => { msg.copied = false; }, 1500);
+      } catch {}
     },
 
     // ── Helpers ──────────────────────────────────────────
     _scrollDown() {
       const el = this.$refs.scroll;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     },
 
-    /** Tiny markdown for bold (**text**) and newlines. Just for the system message. */
-    _mdLite(text) {
-      return text
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    _escape(t) {
+      return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     },
 
-    /** Wrap [MM:SS] / [HH:MM:SS] in clickable chips that seek the current audio. */
-    _linkifyTimestamps(text) {
-      // If we already escaped via _mdLite, this just operates on the resulting string.
-      // Otherwise escape first.
-      let s = text;
-      if (!/<strong>/.test(s)) {
-        s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    /** Full assistant answer rendering: markdown → timestamp chips → sanitize. */
+    _renderAnswer(text) {
+      // 1. Replace [MM:SS] with clickable chip markup BEFORE markdown so marked
+      //    treats the chip <button> as inline HTML.
+      const chipped = String(text).replace(
+        /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g,
+        (_, ts) => {
+          const parts = ts.split(':').map(Number);
+          const sec   = parts.length === 3
+            ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+            : parts[0] * 60 + parts[1];
+          return `<button data-seek="${sec}" class="inline-flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 mx-0.5 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 rounded ring-1 ring-emerald-400/20 transition-colors align-middle" dir="ltr">▶ ${ts}</button>`;
+        }
+      );
+
+      const rawHtml = (typeof marked !== 'undefined')
+        ? marked.parse(chipped, { breaks: true, gfm: true })
+        : this._escape(chipped);
+
+      if (typeof DOMPurify !== 'undefined') {
+        return DOMPurify.sanitize(rawHtml, {
+          ADD_ATTR: ['data-seek', 'dir'],
+        });
       }
-      return s.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (_, ts) => {
-        const parts = ts.split(':').map(Number);
-        const sec   = parts.length === 3
-          ? parts[0] * 3600 + parts[1] * 60 + parts[2]
-          : parts[0] * 60 + parts[1];
-        return `<button onclick="(function(){const a=document.querySelector('audio');if(a){a.currentTime=${sec};a.play().catch(()=>{});}})()" class="inline-flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 mx-0.5 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25 rounded ring-1 ring-emerald-400/20 transition-colors align-middle" dir="ltr">▶ ${ts}</button>`;
-      });
+      return rawHtml;
     },
   };
 }
