@@ -106,7 +106,10 @@ def _serialize_hits(hits) -> list[dict[str, Any]]:
 # ── Routes ───────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/api/health")
