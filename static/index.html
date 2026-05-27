@@ -1,23 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Muhadara RAG — Arabic/English code-switched lecture search with timestamped RAG.">
-  <title>Muhadara RAG</title>
+  <meta name="color-scheme" content="dark">
+  <title>Muhadara RAG · Arabic Lecture Search</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
+            sans:   ['Inter', 'Cairo', 'system-ui', 'sans-serif'],
+            arabic: ['Cairo', 'Inter', 'sans-serif'],
+            mono:   ['JetBrains Mono', 'monospace'],
           },
         },
       },
@@ -26,246 +29,345 @@
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-900 antialiased">
 
-  <!-- Hero -->
-  <header class="relative overflow-hidden">
-    <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 via-emerald-500 to-sky-600"></div>
-    <div class="absolute inset-0 opacity-30" style="background-image: radial-gradient(circle at 30% 20%, rgba(255,255,255,.3), transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,.2), transparent 50%);"></div>
-    <div class="relative max-w-6xl mx-auto px-6 py-14 text-center text-white">
-      <div class="inline-flex items-center gap-3 mb-3">
-        <span class="text-4xl">🎙️</span>
-        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight">Muhadara RAG</h1>
-      </div>
-      <p class="text-base md:text-lg text-emerald-50 max-w-2xl mx-auto leading-relaxed">
-        Search Arabic/English code-switched university lectures by <em class="font-semibold not-italic text-white">meaning</em>.
-        Ask a question — get answers grounded with timestamps.
-      </p>
-      <div class="mt-6 flex flex-wrap justify-center gap-2 text-xs">
-        <span class="px-3 py-1 rounded-full bg-white/15 backdrop-blur">Fine-tuned Whisper</span>
-        <span class="px-3 py-1 rounded-full bg-white/15 backdrop-blur">Modal serverless GPU</span>
-        <span class="px-3 py-1 rounded-full bg-white/15 backdrop-blur">Qdrant + Groq</span>
-        <span class="px-3 py-1 rounded-full bg-white/15 backdrop-blur">LangChain</span>
-      </div>
-    </div>
-  </header>
+<body class="bg-zinc-950 text-zinc-100 antialiased min-h-screen font-sans">
 
-  <main class="max-w-6xl mx-auto px-6 py-8" x-data="muhadaraApp()">
+  <!-- Decorative background grid -->
+  <div class="fixed inset-0 -z-10 pointer-events-none">
+    <div class="absolute inset-0 bg-zinc-950"></div>
+    <div class="absolute inset-0 opacity-[0.04]" style="background-image: linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px); background-size: 32px 32px;"></div>
+    <div class="absolute top-0 start-0 size-[600px] rounded-full blur-[180px] opacity-30 bg-emerald-600"></div>
+    <div class="absolute bottom-0 end-0 size-[500px] rounded-full blur-[180px] opacity-20 bg-sky-700"></div>
+  </div>
 
-    <!-- Tabs -->
-    <nav class="flex gap-1 mb-6 border-b border-slate-200">
-      <button @click="tab = 'demo'"
-              :class="tab === 'demo'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'"
-              class="px-5 py-3 font-semibold border-b-2 transition-colors text-sm">
-        📚 Demo Lecture
-      </button>
-      <button @click="tab = 'upload'"
-              :class="tab === 'upload'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'"
-              class="px-5 py-3 font-semibold border-b-2 transition-colors text-sm">
-        🎤 Upload Your Own
-      </button>
-    </nav>
+  <div class="flex min-h-screen" x-data="muhadaraApp()" x-init="$watch('tab', () => sourcesPanelOpen = false)">
 
-    <!-- ─── Demo Lecture tab ─── -->
-    <section x-show="tab === 'demo'" x-transition.opacity>
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-4">
-        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-          <h2 class="text-lg font-bold">NLP Lecture 1 — Syntax, Semantics & Ambiguity</h2>
-          <span class="text-xs text-slate-500">Pre-indexed · Arabic + English</span>
-        </div>
-        <audio controls preload="metadata" src="/static/demo.mp3" class="w-full" x-ref="demoAudio"></audio>
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <!-- Chat -->
-        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[500px]">
-          <div class="flex-1 overflow-y-auto p-4 space-y-3" x-ref="demoScroll">
-            <template x-if="demo.messages.length === 0 && !demo.loading">
-              <div class="h-full flex items-center justify-center text-center text-slate-400 text-sm px-6">
-                Ask anything about the lecture — in Arabic, English, or mixed.
-              </div>
-            </template>
-            <template x-for="(msg, i) in demo.messages" :key="i">
-              <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
-                <div :class="msg.role === 'user'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-100 text-slate-900'"
-                  class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed shadow-sm">
-                  <span x-html="msg.html || msg.content"></span>
-                </div>
-              </div>
-            </template>
-            <template x-if="demo.loading">
-              <div class="flex justify-start">
-                <div class="bg-slate-100 rounded-2xl px-4 py-2.5 text-sm text-slate-500 inline-flex items-center gap-1">
-                  <span class="dot-pulse"></span><span class="dot-pulse" style="animation-delay:.15s"></span><span class="dot-pulse" style="animation-delay:.3s"></span>
-                </div>
-              </div>
-            </template>
-          </div>
-
-          <form @submit.prevent="askDemo()" class="border-t border-slate-200 p-3 flex gap-2 bg-slate-50/50">
-            <input x-model="demo.input" type="text"
-                   placeholder="Ask in Arabic or English…"
-                   class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm">
-            <button type="submit" :disabled="demo.loading || !demo.input.trim()"
-                    class="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors">
-              Ask
-            </button>
-          </form>
-        </div>
-
-        <!-- Sources sidebar -->
-        <aside class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 h-[500px] overflow-y-auto">
-          <h3 class="font-semibold text-xs uppercase tracking-wider text-slate-500 mb-3">Retrieved chunks</h3>
-          <template x-if="demo.sources.length === 0">
-            <p class="text-slate-400 text-xs">Ask a question to see the sources used.</p>
-          </template>
-          <template x-for="(source, i) in demo.sources" :key="i">
-            <div class="mb-3 pb-3 border-b border-slate-100 last:border-0">
-              <div class="flex items-center gap-2 mb-1.5">
-                <button @click="seekDemoTo(source.abs_start)"
-                        class="font-mono text-[11px] px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 transition-colors"
-                        :title="`Jump to ${source.timestamp}`">
-                  ▶ <span x-text="source.timestamp"></span>
-                </button>
-                <span class="text-[11px] text-slate-400" x-text="`score ${source.score.toFixed(3)}`"></span>
-              </div>
-              <p class="text-xs text-slate-700 leading-relaxed" x-text="source.text.slice(0, 240) + (source.text.length > 240 ? '…' : '')"></p>
-            </div>
-          </template>
-        </aside>
-      </div>
-
-      <!-- Example questions -->
-      <div class="mt-5">
-        <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Try one</p>
-        <div class="flex flex-wrap gap-2">
-          <template x-for="ex in demo.examples" :key="ex">
-            <button @click="demo.input = ex; askDemo()"
-                    class="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-full hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
-              <span x-text="ex"></span>
-            </button>
-          </template>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── Upload tab ─── -->
-    <section x-show="tab === 'upload'" x-transition.opacity>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <!-- Left: upload + transcript + summary -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-4">
+    <!-- ─── Sidebar ─── -->
+    <aside class="hidden md:flex flex-col w-64 shrink-0 border-s border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm">
+      <!-- Brand -->
+      <div class="px-5 py-5 border-b border-zinc-800/80">
+        <div class="flex items-center gap-3">
+          <div class="size-9 rounded-lg bg-gradient-to-br from-emerald-400 to-sky-500 grid place-items-center text-lg shadow-lg shadow-emerald-500/20">🎙️</div>
           <div>
-            <h2 class="text-lg font-bold mb-1">Try it on your own audio</h2>
-            <p class="text-slate-600 text-sm">Upload an Arabic/English clip (max <strong>2 minutes</strong>). It's transcribed on a GPU, summarized, and indexed — then ask anything about it.</p>
+            <h1 class="font-bold text-sm leading-tight">Muhadara <span class="text-emerald-400">RAG</span></h1>
+            <p class="text-[10px] text-zinc-500 leading-tight mt-0.5">Lecture search</p>
           </div>
-
-          <!-- Drag-drop -->
-          <div @drop.prevent="handleDrop($event)" @dragover.prevent @dragenter.prevent="dragHover=true" @dragleave.prevent="dragHover=false"
-               @click="$refs.fileInput.click()"
-               :class="dragHover ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-emerald-400 hover:bg-emerald-50/30'"
-               class="border-2 border-dashed rounded-xl p-7 text-center cursor-pointer transition-colors">
-            <input x-ref="fileInput" type="file" accept="audio/*" @change="handleFile($event)" class="hidden">
-            <template x-if="!upload.file">
-              <div class="text-slate-500">
-                <p class="text-3xl mb-2">📁</p>
-                <p class="text-sm font-medium text-slate-700">Drop an audio file or click to pick</p>
-                <p class="text-xs mt-1 text-slate-400">MP3, WAV, M4A, OGG…</p>
-              </div>
-            </template>
-            <template x-if="upload.file">
-              <div class="text-emerald-700">
-                <p class="text-3xl mb-2">🎵</p>
-                <p class="text-sm font-semibold" x-text="upload.file.name"></p>
-                <p class="text-xs mt-1 text-slate-500" x-text="`${(upload.file.size / 1024 / 1024).toFixed(1)} MB`"></p>
-              </div>
-            </template>
-          </div>
-
-          <button @click="transcribeUpload()" :disabled="!upload.file || upload.processing"
-                  class="w-full px-4 py-2.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
-            <span x-show="!upload.processing">Transcribe + Index</span>
-            <span x-show="upload.processing" class="inline-flex items-center gap-2">
-              <span class="dot-pulse"></span><span class="dot-pulse" style="animation-delay:.15s"></span><span class="dot-pulse" style="animation-delay:.3s"></span>
-              <span class="ml-1">Processing</span>
-            </span>
-          </button>
-
-          <p x-show="upload.status" :class="upload.error ? 'text-red-600' : 'text-emerald-700'" class="text-xs font-medium" x-text="upload.status"></p>
-
-          <div x-show="upload.transcript">
-            <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Transcript</label>
-            <div class="mt-1 p-3 bg-slate-50 rounded-lg text-sm max-h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed" x-text="upload.transcript"></div>
-          </div>
-
-          <div x-show="upload.summary">
-            <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Summary</label>
-            <div class="mt-1 p-3 bg-slate-50 rounded-lg text-sm leading-relaxed" x-text="upload.summary"></div>
-          </div>
-        </div>
-
-        <!-- Right: chat over uploaded clip -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[600px]">
-          <div class="border-b border-slate-200 px-5 py-3">
-            <h3 class="font-semibold text-sm">💬 Ask about this recording</h3>
-            <p x-show="upload.sessionId" class="text-[11px] text-slate-500 mt-0.5" x-text="`Indexed: ${upload.numChunks} chunk${upload.numChunks === 1 ? '' : 's'}`"></p>
-          </div>
-          <div class="flex-1 overflow-y-auto p-4 space-y-3" x-ref="uploadScroll">
-            <template x-if="!upload.sessionId">
-              <div class="h-full flex items-center justify-center text-center text-slate-400 text-sm px-6">
-                Upload and transcribe a recording first.
-              </div>
-            </template>
-            <template x-for="(msg, i) in upload.messages" :key="i">
-              <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
-                <div :class="msg.role === 'user'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-slate-100 text-slate-900'"
-                  class="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap leading-relaxed shadow-sm">
-                  <span x-text="msg.content"></span>
-                </div>
-              </div>
-            </template>
-            <template x-if="upload.chatLoading">
-              <div class="flex justify-start">
-                <div class="bg-slate-100 rounded-2xl px-4 py-2.5 text-sm text-slate-500 inline-flex items-center gap-1">
-                  <span class="dot-pulse"></span><span class="dot-pulse" style="animation-delay:.15s"></span><span class="dot-pulse" style="animation-delay:.3s"></span>
-                </div>
-              </div>
-            </template>
-          </div>
-          <form @submit.prevent="askUpload()" class="border-t border-slate-200 p-3 flex gap-2 bg-slate-50/50">
-            <input x-model="upload.input" :disabled="!upload.sessionId" type="text"
-                   placeholder="What did the speaker mention about…?"
-                   class="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed">
-            <button type="submit" :disabled="!upload.sessionId || upload.chatLoading || !upload.input.trim()"
-                    class="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors">
-              Ask
-            </button>
-          </form>
         </div>
       </div>
-    </section>
 
-    <!-- Footer -->
-    <footer class="mt-12 pt-6 border-t border-slate-200 text-center text-xs text-slate-500">
-      <p class="mb-1">
-        Fine-tuned Whisper-medium (CT2 INT8) · multilingual-e5-large · Qdrant · Groq · Modal GPU · LangChain
-      </p>
-      <p>
-        Built by
-        <a href="https://huggingface.co/Seif-Eldeen-Sameh" class="text-emerald-600 hover:underline font-medium">@Seif-Eldeen-Sameh</a>
-        · Source on
-        <a href="https://github.com/Seif-Eldeen-Sameh/muhadara-rag" class="text-emerald-600 hover:underline font-medium">GitHub</a>
-      </p>
-    </footer>
+      <!-- Nav -->
+      <nav class="px-3 py-4 flex-1">
+        <p class="text-[10px] uppercase tracking-wider text-zinc-500 px-3 mb-2 font-semibold">Workspace</p>
+        <button @click="tab = 'demo'"
+                :class="tab === 'demo'
+                  ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'"
+                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-start">
+          <span class="text-base">📚</span>
+          <span>Demo Lecture</span>
+        </button>
+        <button @click="tab = 'upload'"
+                :class="tab === 'upload'
+                  ? 'bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50'"
+                class="w-full flex items-center gap-3 px-3 py-2 mt-1 rounded-lg text-sm font-medium transition-colors text-start">
+          <span class="text-base">🎤</span>
+          <span>Upload Your Own</span>
+        </button>
+      </nav>
 
-  </main>
+      <!-- Footer info -->
+      <div class="px-5 py-4 border-t border-zinc-800/80 space-y-2.5">
+        <div class="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">System</div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-zinc-400">ASR</span>
+          <span class="inline-flex items-center gap-1.5 text-emerald-400">
+            <span class="size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Modal · T4
+          </span>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-zinc-400">Vector DB</span>
+          <span class="text-zinc-300 font-mono">Qdrant</span>
+        </div>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-zinc-400">LLM</span>
+          <span class="text-zinc-300 font-mono">Groq</span>
+        </div>
+        <a href="https://github.com/Seif-Eldeen-Sameh/muhadara-rag"
+           class="block text-xs text-zinc-500 hover:text-emerald-400 transition-colors pt-2">
+          → View on GitHub
+        </a>
+      </div>
+    </aside>
+
+    <!-- ─── Main ─── -->
+    <main class="flex-1 flex flex-col min-w-0">
+
+      <!-- Top bar -->
+      <div class="border-b border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm">
+        <div class="px-6 lg:px-10 py-5 flex items-baseline justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold tracking-tight" x-text="tab === 'demo' ? 'Demo Lecture' : 'Upload Your Own'"></h2>
+            <p class="text-xs text-zinc-500 mt-0.5" x-text="tab === 'demo' ? 'NLP Lecture 1 — Syntax, Semantics & Ambiguity' : 'Transcribe an Arabic/English clip (≤ 2 min) and ask about it'"></p>
+          </div>
+          <!-- Mobile tabs -->
+          <div class="md:hidden flex gap-1 rounded-lg bg-zinc-900 p-1 border border-zinc-800">
+            <button @click="tab = 'demo'"
+                    :class="tab === 'demo' ? 'bg-emerald-500/15 text-emerald-300' : 'text-zinc-400'"
+                    class="px-3 py-1.5 rounded-md text-xs font-semibold">Demo</button>
+            <button @click="tab = 'upload'"
+                    :class="tab === 'upload' ? 'bg-emerald-500/15 text-emerald-300' : 'text-zinc-400'"
+                    class="px-3 py-1.5 rounded-md text-xs font-semibold">Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 p-6 lg:p-10">
+
+        <!-- ───────── Demo Lecture ───────── -->
+        <section x-show="tab === 'demo'" x-transition.opacity class="space-y-4 max-w-6xl">
+          <!-- Audio player card -->
+          <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur p-5">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">🎧</span>
+                <h3 class="font-semibold text-sm">Lecture audio</h3>
+              </div>
+              <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Pre-indexed · 82 min</span>
+            </div>
+            <audio controls preload="metadata" src="/static/demo.mp3" class="w-full" x-ref="demoAudio"></audio>
+          </div>
+
+          <!-- Chat + sources -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <!-- Chat -->
+            <div class="lg:col-span-2 rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur flex flex-col h-[520px] overflow-hidden">
+              <div class="px-5 py-3 border-b border-zinc-800/80 flex items-center justify-between">
+                <h3 class="font-semibold text-sm">Ask</h3>
+                <button @click="demo.messages = []; demo.sources = []"
+                        x-show="demo.messages.length > 0"
+                        class="text-[11px] text-zinc-500 hover:text-zinc-200 transition-colors">
+                  ✕ clear
+                </button>
+              </div>
+
+              <div class="flex-1 overflow-y-auto p-5 space-y-3" x-ref="demoScroll">
+                <template x-if="demo.messages.length === 0 && !demo.loading">
+                  <div class="h-full flex flex-col items-center justify-center text-center px-6">
+                    <div class="size-12 rounded-full bg-emerald-500/10 grid place-items-center text-emerald-400 text-xl mb-3">💬</div>
+                    <p class="text-zinc-300 font-medium text-sm">Ask anything about the lecture</p>
+                    <p class="text-zinc-500 text-xs mt-1">In Arabic, English, or both. Citations link back to the audio.</p>
+                  </div>
+                </template>
+
+                <template x-for="(msg, i) in demo.messages" :key="i">
+                  <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="msg.role === 'user'
+                          ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-900/30'
+                          : 'bg-zinc-800/70 text-zinc-100 ring-1 ring-zinc-700/50'"
+                         class="max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
+                         dir="auto"
+                         style="font-family: 'Inter', 'Cairo', sans-serif;">
+                      <span x-html="msg.html || msg.content"></span>
+                    </div>
+                  </div>
+                </template>
+
+                <template x-if="demo.loading">
+                  <div class="flex justify-start">
+                    <div class="bg-zinc-800/70 ring-1 ring-zinc-700/50 rounded-2xl px-4 py-2.5 text-zinc-400 inline-flex items-center gap-1">
+                      <span class="dot-pulse"></span><span class="dot-pulse" style="animation-delay:.15s"></span><span class="dot-pulse" style="animation-delay:.3s"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <form @submit.prevent="askDemo()" class="border-t border-zinc-800/80 p-3 flex gap-2 bg-zinc-950/30">
+                <input x-model="demo.input" type="text" dir="auto"
+                       placeholder="اسأل بالعربية أو الإنجليزية…   /   Ask in Arabic or English…"
+                       class="flex-1 px-4 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm text-zinc-100 placeholder:text-zinc-600">
+                <button type="submit" :disabled="demo.loading || !demo.input.trim()"
+                        class="px-5 py-2.5 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-sm transition-colors shadow-lg shadow-emerald-500/20">
+                  <span x-show="!demo.loading">Send</span>
+                  <span x-show="demo.loading" class="dot-pulse"></span>
+                </button>
+              </form>
+            </div>
+
+            <!-- Sources -->
+            <aside class="rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur h-[520px] overflow-hidden flex flex-col">
+              <div class="px-5 py-3 border-b border-zinc-800/80">
+                <h3 class="font-semibold text-sm">Retrieved chunks</h3>
+                <p class="text-[10px] text-zinc-500 mt-0.5" x-text="demo.sources.length > 0 ? `${demo.sources.length} sources` : 'Click a timestamp to seek'"></p>
+              </div>
+
+              <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                <template x-if="demo.sources.length === 0">
+                  <p class="text-zinc-600 text-xs text-center py-8">Ask a question to see sources.</p>
+                </template>
+                <template x-for="(source, i) in demo.sources" :key="i">
+                  <div class="rounded-lg bg-zinc-800/40 hover:bg-zinc-800/70 transition-colors p-3 group">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                      <button @click="seekDemoTo(source.abs_start)"
+                              class="font-mono text-[11px] px-2 py-1 bg-emerald-500/15 text-emerald-300 rounded hover:bg-emerald-500/25 transition-colors inline-flex items-center gap-1.5">
+                        <svg class="size-3" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 3.5a.5.5 0 0 1 .77-.42l6 4a.5.5 0 0 1 0 .84l-6 4A.5.5 0 0 1 5.5 11.5v-8z"/></svg>
+                        <span x-text="source.timestamp"></span>
+                      </button>
+                      <span class="text-[10px] font-mono text-zinc-500" x-text="source.score.toFixed(3)"></span>
+                    </div>
+                    <p class="text-xs text-zinc-300 leading-relaxed" dir="auto"
+                       x-text="source.text.slice(0, 220) + (source.text.length > 220 ? '…' : '')"></p>
+                  </div>
+                </template>
+              </div>
+            </aside>
+          </div>
+
+          <!-- Examples -->
+          <div class="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-4">
+            <p class="text-[10px] uppercase tracking-wider text-zinc-500 mb-2.5 font-semibold">Suggested queries</p>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="ex in demo.examples" :key="ex">
+                <button @click="demo.input = ex; askDemo()" dir="auto"
+                        class="text-xs px-3 py-1.5 bg-zinc-800/60 border border-zinc-700/50 rounded-full hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors text-zinc-300">
+                  <span x-text="ex"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </section>
+
+        <!-- ───────── Upload tab ───────── -->
+        <section x-show="tab === 'upload'" x-transition.opacity class="max-w-6xl">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            <!-- Upload card -->
+            <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur p-6 space-y-5">
+              <!-- Drop zone -->
+              <div @drop.prevent="handleDrop($event)" @dragover.prevent
+                   @dragenter.prevent="dragHover = true" @dragleave.prevent="dragHover = false"
+                   @click="$refs.fileInput.click()"
+                   :class="dragHover
+                     ? 'border-emerald-500/60 bg-emerald-500/5'
+                     : 'border-zinc-700 hover:border-emerald-500/40 hover:bg-zinc-800/40'"
+                   class="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors">
+                <input x-ref="fileInput" type="file" accept="audio/*" @change="handleFile($event)" class="hidden">
+                <template x-if="!upload.file">
+                  <div>
+                    <div class="size-12 mx-auto rounded-full bg-zinc-800 grid place-items-center mb-3 text-xl">📁</div>
+                    <p class="text-sm font-semibold text-zinc-200">Drop an audio file</p>
+                    <p class="text-xs text-zinc-500 mt-1">or click to browse · MP3, WAV, M4A, OGG</p>
+                  </div>
+                </template>
+                <template x-if="upload.file">
+                  <div>
+                    <div class="size-12 mx-auto rounded-full bg-emerald-500/10 grid place-items-center mb-3 text-xl">🎵</div>
+                    <p class="text-sm font-semibold text-emerald-300" x-text="upload.file.name" dir="auto"></p>
+                    <p class="text-xs text-zinc-500 mt-1" x-text="`${(upload.file.size / 1024 / 1024).toFixed(1)} MB`"></p>
+                  </div>
+                </template>
+              </div>
+
+              <button @click="transcribeUpload()" :disabled="!upload.file || upload.processing"
+                      class="w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-sm transition-colors shadow-lg shadow-emerald-500/20">
+                <span x-show="!upload.processing">Transcribe + Index</span>
+                <span x-show="upload.processing" class="inline-flex items-center gap-2">
+                  <span class="dot-pulse"></span><span class="dot-pulse" style="animation-delay:.15s"></span><span class="dot-pulse" style="animation-delay:.3s"></span>
+                  <span class="ms-1">Processing</span>
+                </span>
+              </button>
+
+              <p x-show="upload.status"
+                 :class="upload.error ? 'text-rose-400' : 'text-emerald-400'"
+                 class="text-xs font-medium" x-text="upload.status"></p>
+
+              <div x-show="upload.transcript">
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Transcript</label>
+                </div>
+                <div class="p-3 bg-zinc-950/50 ring-1 ring-zinc-800 rounded-lg text-sm leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap"
+                     dir="auto" x-text="upload.transcript"></div>
+              </div>
+
+              <div x-show="upload.summary">
+                <label class="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-1.5 block">Summary</label>
+                <div class="p-3 bg-zinc-950/50 ring-1 ring-zinc-800 rounded-lg text-sm leading-relaxed"
+                     dir="auto" x-text="upload.summary"></div>
+              </div>
+            </div>
+
+            <!-- Chat -->
+            <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 backdrop-blur h-[640px] flex flex-col overflow-hidden">
+              <div class="border-b border-zinc-800/80 px-5 py-3 flex items-center justify-between">
+                <div>
+                  <h3 class="font-semibold text-sm">💬 Ask about this recording</h3>
+                  <p x-show="upload.sessionId" class="text-[10px] text-zinc-500 mt-0.5"
+                     x-text="`Indexed: ${upload.numChunks} chunk${upload.numChunks === 1 ? '' : 's'} · session ${upload.sessionId?.slice(0,8)}…`"></p>
+                </div>
+                <button @click="upload.messages = []"
+                        x-show="upload.messages.length > 0"
+                        class="text-[11px] text-zinc-500 hover:text-zinc-200 transition-colors">
+                  ✕ clear
+                </button>
+              </div>
+
+              <div class="flex-1 overflow-y-auto p-5 space-y-3" x-ref="uploadScroll">
+                <template x-if="!upload.sessionId">
+                  <div class="h-full flex flex-col items-center justify-center text-center px-6">
+                    <div class="size-12 rounded-full bg-zinc-800 grid place-items-center text-zinc-500 text-xl mb-3">🎤</div>
+                    <p class="text-zinc-400 font-medium text-sm">No recording yet</p>
+                    <p class="text-zinc-600 text-xs mt-1">Upload and transcribe a clip on the left.</p>
+                  </div>
+                </template>
+                <template x-for="(msg, i) in upload.messages" :key="i">
+                  <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="msg.role === 'user'
+                          ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-900/30'
+                          : 'bg-zinc-800/70 text-zinc-100 ring-1 ring-zinc-700/50'"
+                         class="max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
+                         dir="auto"
+                         x-text="msg.content"></div>
+                  </div>
+                </template>
+                <template x-if="upload.chatLoading">
+                  <div class="flex justify-start">
+                    <div class="bg-zinc-800/70 ring-1 ring-zinc-700/50 rounded-2xl px-4 py-2.5 text-zinc-400 inline-flex items-center gap-1">
+                      <span class="dot-pulse"></span><span class="dot-pulse" style="animation-delay:.15s"></span><span class="dot-pulse" style="animation-delay:.3s"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <form @submit.prevent="askUpload()" class="border-t border-zinc-800/80 p-3 flex gap-2 bg-zinc-950/30">
+                <input x-model="upload.input" :disabled="!upload.sessionId" type="text" dir="auto"
+                       placeholder="ماذا قال المتحدث عن…؟"
+                       class="flex-1 px-4 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20 outline-none text-sm text-zinc-100 placeholder:text-zinc-600 disabled:bg-zinc-900/50 disabled:cursor-not-allowed">
+                <button type="submit" :disabled="!upload.sessionId || upload.chatLoading || !upload.input.trim()"
+                        class="px-5 py-2.5 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed text-sm transition-colors shadow-lg shadow-emerald-500/20">
+                  Send
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Status bar -->
+      <div class="border-t border-zinc-800/80 bg-zinc-950/50 px-6 py-2 flex items-center justify-between text-[11px] text-zinc-500">
+        <div class="flex items-center gap-4">
+          <span class="inline-flex items-center gap-1.5">
+            <span class="size-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Connected
+          </span>
+          <span class="font-mono hidden sm:inline">whisper-medium-arabic-codeswitched · int8</span>
+        </div>
+        <a href="https://huggingface.co/Seif-Eldeen-Sameh" class="hover:text-emerald-400 transition-colors">@Seif-Eldeen-Sameh</a>
+      </div>
+    </main>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

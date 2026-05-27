@@ -146,16 +146,18 @@ function muhadaraApp() {
       if (el) el.scrollTop = el.scrollHeight;
     },
 
-    /** Wrap [MM:SS] or [HH:MM:SS] in clickable buttons that seek the demo audio. */
-    _linkifyTimestamps(text, audioRef) {
+    /** Wrap [MM:SS] or [HH:MM:SS] in clickable chips that seek the demo audio. */
+    _linkifyTimestamps(text, _audioRef) {
       const esc = text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return esc.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (m, ts) => {
+      return esc.replace(/\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g, (_, ts) => {
         const parts = ts.split(':').map(Number);
-        const sec = parts.length === 3
+        const sec   = parts.length === 3
           ? parts[0] * 3600 + parts[1] * 60 + parts[2]
           : parts[0] * 60 + parts[1];
-        return `<button onclick="document.querySelector('audio').currentTime=${sec};document.querySelector('audio').play()" class="font-mono text-[11px] px-1.5 py-0.5 bg-white/20 hover:bg-white/30 rounded transition-colors">▶ ${ts}</button>`;
+        // Same styling on both user (emerald) and assistant (zinc) bubbles —
+        // ring + tint reads fine on either background.
+        return `<button onclick="(function(){const a=document.querySelector('audio');if(a){a.currentTime=${sec};a.play().catch(()=>{});}})()" class="inline-flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 mx-0.5 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 rounded ring-1 ring-emerald-400/30 transition-colors align-middle" dir="ltr">▶ ${ts}</button>`;
       });
     },
   };

@@ -1,10 +1,25 @@
-/* Custom CSS for Muhadara RAG — small additions on top of Tailwind. */
+/* Muhadara RAG — custom CSS (dark theme + RTL polish). */
 
-/* Animated "thinking" dots */
+/* ── Typography ───────────────────────────────────────── */
+html { color-scheme: dark; }
+
+body {
+  /* Mixed Latin + Arabic. Inter handles Latin, Cairo handles Arabic.
+     Browsers pick the right one per glyph. */
+  font-family: 'Inter', 'Cairo', system-ui, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Improve Arabic legibility — Cairo is heavier visually, balance it */
+:lang(ar), [dir="auto"]:has(:not(:lang(en))) {
+  letter-spacing: 0;
+}
+
+/* ── Loading dots ─────────────────────────────────────── */
 .dot-pulse {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
   background: currentColor;
   opacity: 0.4;
@@ -12,16 +27,40 @@
 }
 @keyframes dot-pulse {
   0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
-  30%           { opacity: 1;   transform: scale(1);   }
+  30%           { opacity: 1;   transform: scale(1); }
 }
 
-/* Pleasant scrollbars on chat areas */
+/* ── Dark, slim scrollbars ─────────────────────────────── */
 *::-webkit-scrollbar       { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.3); border-radius: 4px; }
-*::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.5); }
+*::-webkit-scrollbar-thumb { background: rgba(82, 82, 91, 0.4); border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(82, 82, 91, 0.7); }
 *::-webkit-scrollbar-track { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: rgba(82, 82, 91, 0.4) transparent; }
 
-/* Smooth audio control colour to match brand */
-audio::-webkit-media-controls-panel {
-  background-color: #f8fafc;
+/* ── Audio player (dark) ───────────────────────────────── */
+audio {
+  width: 100%;
+  height: 40px;
+  filter: invert(0.9) hue-rotate(180deg) saturate(0.8);
+  border-radius: 8px;
 }
+
+/* ── Focus rings (subtle, brand-colored) ───────────────── */
+*:focus-visible {
+  outline: 2px solid rgb(16 185 129 / 0.6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Selection ─────────────────────────────────────────── */
+::selection { background: rgba(16, 185, 129, 0.3); color: #fff; }
+
+/* ── RTL fixes for things Tailwind logical props don't cover ─ */
+/* Make the audio progress bar feel right in both directions */
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Smooth hover transitions everywhere */
+button, a, input { transition: background-color 150ms, border-color 150ms, color 150ms, opacity 150ms; }
