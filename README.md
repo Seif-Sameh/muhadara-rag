@@ -15,7 +15,7 @@ short_description: Arabic/English lecture search with timestamped RAG
   GitHub renders this file starting from the title below.
 -->
 
-# 🎙️ Muhadara RAG — Semantic Search for Code-Switched Lectures
+# 🎙️ Muhadara RAG — Semantic Search for Arabic/English Code-Switched Lectures
 
 > Ask a question about an Arabic/English university lecture — in **either language** —
 > and get an answer grounded in the transcript, with **timestamps that point back to the exact moment** in the audio.
