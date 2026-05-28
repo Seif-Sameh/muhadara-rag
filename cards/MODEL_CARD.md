@@ -85,12 +85,23 @@ print(" ".join(s.text for s in segs))
 
 ## Evaluation
 
-<!-- Fill from eval/evaluation.ipynb in the Muhadara RAG repo -->
+Measured on a held-out slice of [`asr_codeswitched_dataset`](https://huggingface.co/datasets/Seif-Eldeen-Sameh/asr_codeswitched_dataset) with `jiwer` WER, light text normalization (lowercase, diacritic + punctuation strip, no MSA folding). Reproduce with [`eval/evaluation.ipynb`](https://github.com/Seif-Eldeen-Sameh/muhadara-rag/blob/main/eval/evaluation.ipynb).
 
-| Model | WER (code-switched test) |
+| Model | WER ↓ |
 |---|---|
-| `openai/whisper-medium` | `TODO` |
-| this model | `TODO` |
+| `openai/whisper-medium` (base) | 52.4 % |
+| `whisper-medium-arabic-codeswitched` (this) | **17.9 %** |
+| Absolute reduction | **−34.5 points** |
+
+### Latency (40.8 s clip, median of 3 runs)
+
+| Variant | Device | Wall time | RTF |
+|---|---|---|---|
+| CT2 INT8 | CPU (2 vCPU) | 82.94 s | 2.03× |
+| CT2 INT8 | T4 GPU | 2.49 s | 0.061× |
+| CT2 FP16 | T4 GPU | 2.34 s | 0.057× |
+
+The CT2 INT8 build is ~4× smaller than the original FP32 (~380 MB vs ~3 GB) and ~33× faster on T4 GPU vs free-tier CPU.
 
 ## Limitations
 

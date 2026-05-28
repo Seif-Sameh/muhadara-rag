@@ -131,19 +131,27 @@ aggressive enhancement. Knowing when *not* to add a stage is part of the job.
 
 ## Results
 
-> Run [`eval/evaluation.ipynb`](eval/evaluation.ipynb) to reproduce these numbers on your data.
+Reproduce these with [`eval/evaluation.ipynb`](eval/evaluation.ipynb) on a Colab GPU runtime.
 
-| Metric | Base whisper-medium | Fine-tuned (this) |
-|---|---|---|
-| WER on code-switched test set | `TODO` | `TODO` |
-| English-term retention | poor (translated/dropped) | preserved |
+### Transcription quality (WER ↓ better)
 
-| Variant | Size | CPU latency (1 min audio) | GPU latency (1 min) |
+| Model | WER on code-switched test set |
+|---|---|
+| `openai/whisper-medium` (base) | **52.4 %** |
+| `whisper-medium-arabic-codeswitched` (fine-tuned, this work) | **17.9 %** |
+| **Absolute reduction** | **−34.5 points** |
+
+The base model drops or transliterates English technical terms and pushes dialect toward MSA — both of which destroy retrieval quality downstream. The fine-tune preserves code-switching verbatim.
+
+### Inference latency (40.8 s test clip, median of 3 runs)
+
+| Variant | Device | Wall time | Real-time factor |
 |---|---|---|---|
-| FP32 | ~3.0 GB | `TODO` | `TODO` |
-| CT2 INT8 | ~380 MB | `TODO` | `TODO` |
+| CT2 INT8 | CPU (2 vCPU) | 82.94 s | 2.03× (slower than RT) |
+| CT2 INT8 | T4 GPU | 2.49 s | **0.061×** |
+| CT2 FP16 | T4 GPU | 2.34 s | **0.057×** |
 
-*(Fill the `TODO`s from the eval notebook output — they're computed there.)*
+**~33× speedup CPU → GPU** — this is exactly why the architecture offloads ASR to Modal's serverless GPU instead of running it on the always-on CPU Space. The frontend stays free; the expensive compute is bursty and scale-to-zero.
 
 ---
 
