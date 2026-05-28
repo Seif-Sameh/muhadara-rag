@@ -75,7 +75,7 @@ Groq) handle the stateful and latency-sensitive bits.
 | **Vector DB** | [Qdrant Cloud](https://cloud.qdrant.io) | Free tier; per-lecture collections + a global collection for cross-lecture fallback. |
 | **LLM** | [Groq](https://groq.com) `gpt-oss-120b` | Fast, free tier; used for transcript correction, summarization, and RAG answering. |
 | **Orchestration** | [LangChain](https://www.langchain.com) (LCEL) | Composable retrieval + prompt + LLM chains. |
-| **Frontend** | [Gradio](https://www.gradio.app) on HF Spaces | Audio upload, chat UI, custom theme — permanent public URL. |
+| **Frontend** | FastAPI + vanilla HTML · Tailwind · Alpine.js on HF Spaces (Docker SDK) | Custom UI, no framework lock-in. Single-surface chat (ChatGPT/Claude style), session persistence, dark mode, full RTL support for Arabic. |
 
 ---
 
@@ -144,20 +144,26 @@ The base model drops or transliterates English technical terms and pushes dialec
 
 ```
 muhadara-rag/
-├── app.py                  # Gradio frontend (2 tabs)
+├── server.py               # FastAPI backend (REST + index.html serving)
 ├── utils.py                # Embeddings, vector stores, RAG chains, Modal ASR client
-├── modal_asr.py            # Serverless GPU ASR microservice (deploy separately)
-├── style.css               # Custom theme
+├── modal_asr.py            # Serverless GPU ASR microservice (deployed to Modal)
+├── Dockerfile              # HF Spaces Docker SDK runtime
 ├── requirements.txt
-├── packages.txt            # System deps (ffmpeg)
+├── static/                 # Frontend (no build step)
+│   ├── index.html          #   Tailwind + Alpine.js · dark · RTL
+│   ├── app.js              #   Chat logic, file upload, session persistence
+│   ├── styles.css          #   Custom theme + scroll polish
+│   └── demo.mp3            #   Pre-baked lecture audio (Git LFS)
 ├── .github/workflows/
 │   └── deploy.yml          # CI: auto-deploy to HF Space on push to main
 ├── docs/
 │   └── architecture.md     # Detailed design notes
 ├── eval/
-│   └── evaluation.ipynb    # WER + latency benchmarks
-└── assets/
-    └── demo.mp3            # Pre-baked demo lecture audio
+│   └── evaluation.ipynb    # WER + latency benchmarks (reproducible)
+├── assets/
+│   └── architecture.png    # System architecture figure
+├── DEPLOY.md               # Step-by-step deployment runbook
+└── LICENSE
 ```
 
 ---
@@ -166,11 +172,20 @@ muhadara-rag/
 
 ### Frontend (local)
 ```bash
-git clone https://github.com/Seif-Eldeen-Sameh/muhadara-rag
+git clone https://github.com/Seif-Sameh/muhadara-rag
 cd muhadara-rag
 pip install -r requirements.txt
 export QDRANT_URL=...  QDRANT_API_KEY=...  GROQ_API_KEY=...
-python app.py
+uvicorn server:app --host 0.0.0.0 --port 7860
+# then open http://localhost:7860
+```
+
+Or with Docker (matches what runs on HF Spaces):
+```bash
+docker build -t muhadara-rag .
+docker run -p 7860:7860 \
+  -e QDRANT_URL=... -e QDRANT_API_KEY=... -e GROQ_API_KEY=... \
+  muhadara-rag
 ```
 
 ### GPU ASR service (Modal)

@@ -48,7 +48,7 @@ cd muhadara-rag
 git init -b main
 git add .
 git commit -m "Muhadara RAG: end-to-end code-switched lecture RAG"
-gh repo create Seif-Eldeen-Sameh/muhadara-rag --public --source=. --push
+gh repo create Seif-Sameh/muhadara-rag --public --source=. --push
 ```
 
 Add the HF token so CI/CD can deploy:
@@ -99,21 +99,15 @@ git commit -m "Add demo lecture audio (LFS)"
 git push
 ```
 
-## G. Upload the model & dataset cards
+## G. Model & dataset cards
 
-```bash
-# Model card
-huggingface-cli upload Seif-Eldeen-Sameh/whisper-medium-arabic-codeswitched \
-    cards/MODEL_CARD.md README.md --repo-type model
-# Dataset card
-huggingface-cli upload Seif-Eldeen-Sameh/asr_codeswitched_dataset \
-    cards/DATASET_CARD.md README.md --repo-type dataset
-```
+The HF model and dataset repos have their own README cards (maintained directly on the Hub,
+not stored in this codebase — see `.gitignore`).
 
 ## H. Fill in the metrics
 
 Run `eval/evaluation.ipynb` (Colab GPU runtime). Copy the WER + latency numbers into the
-`TODO`s in `README.md` and `cards/MODEL_CARD.md`, then commit.
+`TODO`s in `README.md`, then commit.
 
 ---
 

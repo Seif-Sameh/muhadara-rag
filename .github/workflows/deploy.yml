@@ -56,7 +56,7 @@ jobs:
                   ".git/*", ".github/*",
                   "__pycache__/*", "*.pyc",
                   ".venv/*", "*.bak",
-                  "cards/*", "docs/*", "eval/*",   # repo-only docs/metrics, not Space runtime
+                  "docs/*", "eval/*",   # repo-only docs/metrics, not Space runtime
                   "DEPLOY.md", "LICENSE",
                   "modal_asr.py",                  # deployed separately to Modal
                   "push_to_space.sh",

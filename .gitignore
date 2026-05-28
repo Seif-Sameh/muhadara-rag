@@ -4,3 +4,6 @@ __pycache__/
 .DS_Store
 *.tmp
 .ipynb_checkpoints/
+
+# Cards live on the HF model/dataset repos, not in this codebase
+cards/
