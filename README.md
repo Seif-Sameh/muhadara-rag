@@ -49,34 +49,19 @@ Two modes in the live app:
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph Offline["Offline — Training & Indexing"]
-        D[Code-switched dataset<br/>~65–80 h audio] --> FT[Fine-tune<br/>Whisper-medium]
-        FT --> Q[Quantize → CT2 INT8<br/>769M → ~380 MB]
-        Q --> ASR1[Transcribe lecture<br/>30s chunks, 5s overlap]
-        ASR1 --> DD[Dedup overlap +<br/>semantic re-chunk]
-        DD --> LC[LLM correction<br/>preserve dialect + terms]
-        LC --> EMB[Embed<br/>multilingual-e5-large]
-        EMB --> VDB[(Qdrant Cloud<br/>per-lecture + global)]
-    end
+<p align="center">
+  <img src="assets/architecture.png"
+       alt="Muhadara RAG runtime architecture. Two parallel pipelines descend from the user: (1) upload audio → FastAPI → chunk → Modal T4 GPU Whisper CT2 INT8 → strip overlap → semantic re-chunk → LLM correction → embed → vector store; (2) ask question → FastAPI → embed query → cosine similarity top-k → format context with timestamps → Groq gpt-oss-120b RAG → answer with [MM:SS] citations. The vector store feeds context into the query pipeline; the answer returns to the user."
+       width="720">
+</p>
 
-    subgraph Online["Online — Live App"]
-        U[User question] --> FE[HF Space · Gradio<br/>free CPU]
-        FE -->|retrieve| VDB
-        VDB -->|top-k + timestamps| FE
-        FE -->|RAG prompt| GROQ[Groq LLM<br/>gpt-oss-120b]
-        GROQ -->|answer + citations| FE
-        UP[User uploads clip] --> FE
-        FE -->|audio bytes| MODAL[Modal · T4 GPU<br/>scale-to-zero]
-        MODAL -->|segments| FE
-    end
-```
-
-**Why this layout:** the always-on frontend is cheap (free CPU does retrieval + LLM API calls
-fine), while the expensive part — GPU transcription — is a **serverless function that scales to
-zero** and only costs anything when someone actually uploads audio. Managed services (Qdrant,
-Groq) handle the stateful and latency-sensitive pieces.
+**Why this split:** the **upload pipeline** runs the same chunk → embed → store sequence that
+indexes the demo lecture, but lands in a per-session in-memory store instead of Qdrant. The
+**query pipeline** runs on every message and pulls context from whichever store matches the
+active source. The expensive piece — GPU transcription — lives on Modal as a
+**serverless function that scales to zero**, so the always-on HF Space frontend stays on free
+CPU and only burns GPU credits when someone actually uploads audio. Managed services (Qdrant,
+Groq) handle the stateful and latency-sensitive bits.
 
 ---
 
