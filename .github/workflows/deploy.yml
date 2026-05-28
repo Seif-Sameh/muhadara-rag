@@ -57,7 +57,7 @@ jobs:
                   "__pycache__/*", "*.pyc",
                   ".venv/*", "*.bak",
                   "docs/*", "eval/*",   # repo-only docs/metrics, not Space runtime
-                  "DEPLOY.md", "LICENSE",
+                  "LICENSE",
                   "modal_asr.py",                  # deployed separately to Modal
                   "push_to_space.sh",
                   "app.py", "style.css", "packages.txt",   # old Gradio leftovers (kept locally for reference)

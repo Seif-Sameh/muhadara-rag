@@ -162,7 +162,6 @@ muhadara-rag/
 │   └── evaluation.ipynb    # WER + latency benchmarks (reproducible)
 ├── assets/
 │   └── architecture.png    # System architecture figure
-├── DEPLOY.md               # Step-by-step deployment runbook
 └── LICENSE
 ```
 
